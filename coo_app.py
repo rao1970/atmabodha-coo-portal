@@ -152,7 +152,7 @@ def send_telegram_alert(bot_token: str, chat_id: str, message: str) -> bool:
 # ==========================================
 def dispatch_delivery_email(sender_email, sender_password, to_email, cust_name, product_codes, download_links):
     if not sender_email or not sender_password:
-        return False, "Sender email or password not configured in secrets or inputs."
+        return False, "Sender email or password not configured."
     
     msg = MIMEMultipart()
     msg["From"] = f"Atma Bodha Operations <{sender_email}>"
@@ -210,12 +210,12 @@ Atma Bodha Operations Desk
         return False, str(e)
 
 # ==========================================
-# SIDEBAR CONFIGURATION (SAFE KEYS)
+# SIDEBAR CONFIGURATION (VERIFIED BOT & SECRETS)
 # ==========================================
 st.sidebar.markdown("### 📱 Telegram Phone Alerts Configuration")
 st.sidebar.caption("Instant background notifications to your mobile Telegram app.")
 
-default_token = get_secret("TELEGRAM_BOT_TOKEN", "8836740336:AAE3xjRLK4P_oqK2Ra6dlSInq0x0eGjH4wQ")
+default_token = get_secret("TELEGRAM_BOT_TOKEN", "8836740336:AAE3xjRLK4P_oqK2Ra6dlSImYIWxxxVizLk")
 default_chat_id = get_secret("TELEGRAM_CHAT_ID", "5858834506")
 sender_email = get_secret("SENDER_EMAIL", "raomurthy1@gmail.com")
 sender_password = get_secret("SENDER_PASSWORD", "")
