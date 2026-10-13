@@ -37,66 +37,107 @@ def get_secret(key: str, default: str = "") -> str:
         return default
 
 # ==========================================
-# PRODUCT CATALOG DATA
+# SYNCHRONIZED PRODUCT CATALOG DATA
+# (Matches Google Drive 1-to-1)
 # ==========================================
 CATALOG_DATA = [
     {
-        "Code": "TD-A68",
-        "Product Name": "Traditional Devotional Audio",
-        "Format": "Devotional Audio (MP3)",
-        "Tracks": 68,
-        "Study Guide": "Not Included",
-        "Price_INR": 499
-    },
-    {
-        "Code": "TD-V68",
+        "Code": "01-TD-V68",
         "Product Name": "Traditional Devotional Lyric Videos",
-        "Format": "Single-image lyric videos (MP4)",
+        "Zip_File": "01_Traditional_Devotional_Videos.zip",
+        "Format": "Single-image lyric videos (68 MP4 files)",
         "Tracks": 68,
         "Study Guide": "Not Included",
-        "Price_INR": 699
+        "Price_INR": 699,
+        "Secret_Key": "LINK_01_TD_V68"
     },
     {
-        "Code": "MD-136",
+        "Code": "02-TD-A68",
+        "Product Name": "Traditional Devotional Audio",
+        "Zip_File": "02_Traditional_Devotional_Audio.zip",
+        "Format": "Traditional devotional audio (68 MP3 files)",
+        "Tracks": 68,
+        "Study Guide": "Not Included",
+        "Price_INR": 499,
+        "Secret_Key": "LINK_02_TD_A68"
+    },
+    {
+        "Code": "03-MD-136",
         "Product Name": "Modern Soul Audio",
-        "Format": "Modern devotional audio tracks (MP3)",
+        "Zip_File": "03_Modern_Soul_Audio.zip",
+        "Format": "Modern devotional audio tracks (136 MP3 files)",
         "Tracks": 136,
         "Study Guide": "Not Included",
-        "Price_INR": 799
+        "Price_INR": 799,
+        "Secret_Key": "LINK_03_MD_136"
     },
     {
-        "Code": "FS-136",
+        "Code": "04-FS-136",
         "Product Name": "World Fusion Audio",
-        "Format": "Fusion-style audio tracks (MP3)",
+        "Zip_File": "04_World_Fusion_Audio.zip",
+        "Format": "World fusion-style audio tracks (136 MP3 files)",
         "Tracks": 136,
         "Study Guide": "Not Included",
-        "Price_INR": 799
+        "Price_INR": 799,
+        "Secret_Key": "LINK_04_FS_136"
     },
     {
-        "Code": "TCP",
+        "Code": "05-TCP",
         "Product Name": "Traditional Complete Pack",
-        "Format": "TD-A68 + TD-V68 + Atma Bodha Study Guide PDF",
+        "Zip_File": "05_TCP_Traditional_Complete_Pack.zip",
+        "Format": "Audio (02) + Video (01) + Study Guide PDF",
         "Tracks": 136,
         "Study Guide": "Included (PDF)",
-        "Price_INR": 999
+        "Price_INR": 999,
+        "Secret_Key": "LINK_05_TCP"
     },
     {
-        "Code": "TAP",
+        "Code": "06-TAP",
         "Product Name": "Three Audio Styles Pack",
-        "Format": "TD-A68 + MD-136 + FS-136 + Atma Bodha Study Guide PDF",
+        "Zip_File": "06_TAP_Three_Audio_Styles_Pack.zip",
+        "Format": "Traditional (02) + Modern (03) + Fusion (04) + Study Guide PDF",
         "Tracks": 340,
         "Study Guide": "Included (PDF)",
-        "Price_INR": 1499
+        "Price_INR": 1499,
+        "Secret_Key": "LINK_06_TAP"
     },
     {
-        "Code": "CAC",
+        "Code": "07-CAC",
         "Product Name": "Complete Atma Bodha Collection",
+        "Zip_File": "07_CAC_Complete_Atma_Bodha_Collection.zip",
         "Format": "All Audio (340) + All Videos (68) + Study Guide PDF",
         "Tracks": 408,
         "Study Guide": "Included (PDF)",
-        "Price_INR": 1999
+        "Price_INR": 1999,
+        "Secret_Key": "LINK_07_CAC"
     }
 ]
+
+# Aliases to keep previously recorded test orders (e.g. "TCP", "MD-136") 100% compatible
+CODE_ALIASES = {
+    "TCP": "05-TCP",
+    "05_TCP": "05-TCP",
+    "TAP": "06-TAP",
+    "06_TAP": "06-TAP",
+    "CAC": "07-CAC",
+    "07_CAC": "07-CAC",
+    "TD-A68": "02-TD-A68",
+    "TD_A68": "02-TD-A68",
+    "TD-V68": "01-TD-V68",
+    "TD_V68": "01-TD-V68",
+    "MD-136": "03-MD-136",
+    "MD_136": "03-MD-136",
+    "FS-136": "04-FS-136",
+    "FS_136": "04-FS-136",
+}
+
+def resolve_catalog_item(code: str):
+    clean = code.strip()
+    target_code = CODE_ALIASES.get(clean, clean)
+    for item in CATALOG_DATA:
+        if item["Code"] == target_code or item["Code"] == clean:
+            return item
+    return None
 
 # ==========================================
 # STORAGE & LEDGER HELPERS
@@ -150,26 +191,40 @@ def send_telegram_alert(bot_token: str, chat_id: str, message: str) -> bool:
 # ==========================================
 # GMAIL DISPATCH HELPER
 # ==========================================
+def find_study_guide_pdf():
+    candidates = [
+        "Atma_Bodha_Study_Guide.pdf",
+        r"G:\My Drive\Atma_Bodha_Master_Audio_Pack_Official\Atma_Bodha_Study_Guide.pdf",
+        os.path.join(os.path.dirname(__file__), "Atma_Bodha_Study_Guide.pdf")
+    ]
+    for path in candidates:
+        if os.path.exists(path):
+            return path
+    return None
+
 def dispatch_delivery_email(sender_email, sender_password, to_email, cust_name, product_codes, download_links):
     if not sender_email or not sender_password:
         return False, "Sender email or password not configured."
-    
+
     msg = MIMEMultipart()
     msg["From"] = f"Atma Bodha Operations <{sender_email}>"
     msg["To"] = to_email
     msg["Subject"] = "Your Atma Bodha Order Access & Digital Downloads"
 
-    chosen_list = [c.strip() for c in product_codes.split(",") if c.strip()]
+    chosen_raw = [c.strip() for c in product_codes.split(",") if c.strip()]
     links_lines = []
-    for code in chosen_list:
-        url = download_links.get(code, "")
-        if url:
-            links_lines.append(f"• {code}: {url}")
-        else:
-            links_lines.append(f"• {code}: Drive link processing, will update directly.")
-
-    links_body = "\n".join(links_lines)
     
+    for raw in chosen_raw:
+        item = resolve_catalog_item(raw)
+        if item:
+            url = download_links.get(item["Code"], "")
+            links_lines.append(f"• {item['Product Name']} ({item['Zip_File']}):\n  👉 Download Link: {url}")
+        else:
+            url = download_links.get(raw, "")
+            links_lines.append(f"• {raw}:\n  👉 Download Link: {url}")
+
+    links_body = "\n\n".join(links_lines)
+
     body = f"""Namaste {cust_name},
 
 Thank you for your order. Your digital access details for the Atma Bodha collection are confirmed:
@@ -188,15 +243,15 @@ Atma Bodha Operations Desk
 """
     msg.attach(MIMEText(body, "plain"))
 
-    # Attach Study Guide PDF if present locally
-    pdf_path = "Atma_Bodha_Study_Guide.pdf"
-    if os.path.exists(pdf_path):
+    # Attach PDF Study Guide
+    pdf_path = find_study_guide_pdf()
+    if pdf_path:
         try:
             with open(pdf_path, "rb") as f:
                 part = MIMEBase("application", "octet-stream")
                 part.set_payload(f.read())
             encoders.encode_base64(part)
-            part.add_header("Content-Disposition", f"attachment; filename={os.path.basename(pdf_path)}")
+            part.add_header("Content-Disposition", "attachment; filename=Atma_Bodha_Study_Guide.pdf")
             msg.attach(part)
         except Exception as e:
             st.warning(f"Could not attach PDF: {e}")
@@ -210,36 +265,46 @@ Atma Bodha Operations Desk
         return False, str(e)
 
 # ==========================================
-# SIDEBAR CONFIGURATION (VERIFIED BOT & SECRETS)
+# SIDEBAR CONFIGURATION
 # ==========================================
-st.sidebar.markdown("### 📱 Telegram Phone Alerts Configuration")
-st.sidebar.caption("Instant background notifications to your mobile Telegram app.")
-
+st.sidebar.markdown("### 📱 Telegram Phone Alerts")
 default_token = get_secret("TELEGRAM_BOT_TOKEN", "8836740336:AAE3xjRLK4P_oqK2Ra6dlSImYIWxxxVizLk")
 default_chat_id = get_secret("TELEGRAM_CHAT_ID", "5858834506")
-sender_email = get_secret("SENDER_EMAIL", "raomurthy1@gmail.com")
-sender_password = get_secret("SENDER_PASSWORD", "mdik stjy qjdc zres")
-
 bot_token = st.sidebar.text_input("Telegram Bot Token", value=default_token, type="password")
 chat_id = st.sidebar.text_input("Telegram Chat ID", value=default_chat_id)
 
 if st.sidebar.button("🔔 Send Test Telegram Ping to Phone"):
-    test_msg = f"🔔 <b>Atma Bodha Test Ping</b>\nTime: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\nStatus: System operational!"
+    test_msg = f"🔔 <b>Atma Bodha System Ping</b>\nTime: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\nStatus: System 100% operational!"
     if send_telegram_alert(bot_token, chat_id, test_msg):
         st.sidebar.success("Ping delivered to your phone!")
     else:
         st.sidebar.error("Failed to send ping. Check Bot Token or Chat ID.")
 
 st.sidebar.markdown("---")
+st.sidebar.markdown("### ✉️ Gmail Dispatch Settings")
+sender_email = st.sidebar.text_input("Sender Gmail", value=get_secret("SENDER_EMAIL", "raomurthy1@gmail.com"))
+sender_password = st.sidebar.text_input("Gmail App Password", value=get_secret("SENDER_PASSWORD", "mdik stjy qjdc zres"), type="password")
+
+st.sidebar.markdown("---")
+with st.sidebar.expander("📁 Google Drive Delivery Links", expanded=False):
+    st.caption("Paste shareable links directly here or manage in Secrets:")
+    drive_links = {}
+    for item in CATALOG_DATA:
+        key = item["Code"]
+        sec_key = item["Secret_Key"]
+        default_url = get_secret(sec_key, get_secret(f"LINK_{key.replace('-', '_')}", ""))
+        drive_links[key] = st.text_input(f"{item['Zip_File']}", value=default_url, key=f"drive_{key}")
+
+st.sidebar.markdown("---")
 ledger_df = load_ledger()
 st.sidebar.markdown(f"💾 **Storage File:** `{LEDGER_FILE}`")
-st.sidebar.markdown(f"**Total records saved:** {len(ledger_df)}")
+st.sidebar.markdown(f"**Total records:** {len(ledger_df)}")
 
 # ==========================================
 # MAIN INTERFACE
 # ==========================================
 st.title("🕉️ Atma Bodha Digital COO Operations Hub")
-st.caption("Central Operations: Product Catalogue | Enquiries | Telegram Mobile Alerts | Google Drive Delivery | Disk Persistence Active")
+st.caption("Central Operations: Product Catalogue | Enquiries | Telegram Mobile Alerts | Google Drive Delivery | Persistent Ledger")
 
 tabs = st.tabs([
     "📚 Catalogue & Auto-Reply",
@@ -254,8 +319,8 @@ tabs = st.tabs([
 # TAB 0: CATALOGUE & AUTO-REPLY
 # ------------------------------------------
 with tabs[0]:
-    st.subheader("Approved Product Catalogue")
-    cat_df = pd.DataFrame(CATALOG_DATA)
+    st.subheader("Approved Product Catalogue (Synchronized with Google Drive)")
+    cat_df = pd.DataFrame(CATALOG_DATA)[["Code", "Product Name", "Zip_File", "Format", "Tracks", "Study Guide", "Price_INR"]]
     st.dataframe(cat_df, use_container_width=True, hide_index=True)
 
     st.markdown("---")
@@ -266,10 +331,10 @@ with tabs[0]:
         st.markdown("**WhatsApp Greeting & Pricing Outline:**")
         template_inquiry = """Namaste! Thank you for inquiring about the Atma Bodha digital collection.
 
-Here are our direct packages:
-• Traditional Complete Pack (TCP): 136 tracks (Audio + Video + Study Guide) - ₹999
-• Three Audio Styles Pack (TAP): 340 tracks (Devotional, Modern & Fusion) - ₹1,499
-• Complete Collection (CAC): 408 tracks (All Audio, Videos & Study Guide) - ₹1,999
+Here are our top packages:
+• 05-TCP - Traditional Complete Pack: 136 tracks (Audio + Video + Study Guide) - ₹999
+• 06-TAP - Three Audio Styles Pack: 340 tracks (Devotional, Modern & Fusion) - ₹1,499
+• 07-CAC - Complete Atma Bodha Collection: 408 tracks (All Audio, Videos & Study Guide) - ₹1,999
 
 Please let us know your preferred choice, and we will share the UPI payment details immediately."""
         st.text_area("Copy Inquiry Reply", template_inquiry, height=180)
@@ -285,7 +350,7 @@ After completing the payment, please share the 12-digit UTR reference number or 
         st.text_area("Copy Payment Instructions", template_pay, height=180)
 
 # ------------------------------------------
-# TAB 1: ENQUIRY INTAKE (PHONE & MULTI-PRODUCT)
+# TAB 1: ENQUIRY INTAKE
 # ------------------------------------------
 with tabs[1]:
     st.subheader("Customer Enquiry Intake")
@@ -299,14 +364,13 @@ with tabs[1]:
         with col2:
             cust_email = st.text_input("Customer Email Address *", placeholder="e.g. customer@gmail.com")
             
-            product_code_list = [item["Code"] for item in CATALOG_DATA]
             product_labels = [f"{item['Code']} - {item['Product Name']} (₹{item['Price_INR']})" for item in CATALOG_DATA]
-            code_mapping = dict(zip(product_labels, product_code_list))
+            label_to_code = {f"{item['Code']} - {item['Product Name']} (₹{item['Price_INR']})": item["Code"] for item in CATALOG_DATA}
 
             selected_labels = st.multiselect(
                 "Requested Product Codes (Choose 1, 2, or more) *",
                 options=product_labels,
-                default=[product_labels[4]]  # Defaults to TCP
+                default=[product_labels[4]]  # Defaults to 05-TCP
             )
 
         notes = st.text_area("Customer Notes / Referral Source", placeholder="Optional special notes or requests...")
@@ -316,10 +380,10 @@ with tabs[1]:
         if not cust_name.strip() or not cust_email.strip() or not cust_phone.strip() or not selected_labels:
             st.error("Please fill all required fields: Name, Phone, Email, and at least one Product Code.")
         else:
-            chosen_codes = [code_mapping[lbl] for lbl in selected_labels]
+            chosen_codes = [label_to_code[lbl] for lbl in selected_labels]
             chosen_codes_str = ", ".join(chosen_codes)
             
-            est_total = sum(next(item["Price_INR"] for item in CATALOG_DATA if item["Code"] == c) for c in chosen_codes)
+            est_total = sum(resolve_catalog_item(c)["Price_INR"] for c in chosen_codes if resolve_catalog_item(c))
             order_id = f"AB-{datetime.now().strftime('%y%m%d')}-{len(ledger_df) + 1:03d}"
 
             new_record = {
@@ -340,7 +404,7 @@ with tabs[1]:
             ledger_df = pd.concat([ledger_df, pd.DataFrame([new_record])], ignore_index=True)
             save_ledger(ledger_df)
             st.success(f"Order **{order_id}** created for **{cust_name}** with package(s): **{chosen_codes_str}**!")
-            st.info("Switch to the **2. Payment Proof & Alert** tab to attach payment UTR and trigger your mobile alert.")
+            st.info("Switch to Tab 2 to submit payment proof and send your instant Telegram mobile alert.")
 
 # ------------------------------------------
 # TAB 2: PAYMENT PROOF & ALERT
@@ -449,15 +513,15 @@ with tabs[4]:
                 st.write(f"**Customer:** {row['Customer_Name']} | 📞 {row['Customer_Phone']} | ✉️ {row['Customer_Email']}")
                 st.write(f"**Selected Packages:** {row['Product_Codes']}")
 
-                drive_links = {
-                    "TCP": get_secret("LINK_TCP", "https://drive.google.com/your-tcp-folder"),
-                    "TAP": get_secret("LINK_TAP", "https://drive.google.com/your-tap-folder"),
-                    "CAC": get_secret("LINK_CAC", "https://drive.google.com/your-cac-folder"),
-                    "TD-A68": get_secret("LINK_TD_A68", "https://drive.google.com/your-td-a68-folder"),
-                    "TD-V68": get_secret("LINK_TD_V68", "https://drive.google.com/your-td-v68-folder"),
-                    "MD-136": get_secret("LINK_MD_136", "https://drive.google.com/your-md-136-folder"),
-                    "FS-136": get_secret("LINK_FS_136", "https://drive.google.com/your-fs-136-folder"),
-                }
+                # Prepare delivery links
+                active_links = {}
+                raw_codes = [c.strip() for c in str(row["Product_Codes"]).split(",") if c.strip()]
+                for raw in raw_codes:
+                    cat_item = resolve_catalog_item(raw)
+                    code_key = cat_item["Code"] if cat_item else raw
+                    # Check sidebar inputs first, then fallback to secrets
+                    url = drive_links.get(code_key, "") or get_secret(f"LINK_{code_key.replace('-', '_')}", "")
+                    active_links[code_key] = url
 
                 if st.button(f"🚀 Send Digital Delivery Email to {row['Customer_Name']}", key=f"del_{row['Order_ID']}"):
                     with st.spinner("Dispatching secure access email with PDF attachment..."):
@@ -467,7 +531,7 @@ with tabs[4]:
                             row["Customer_Email"],
                             row["Customer_Name"],
                             row["Product_Codes"],
-                            drive_links
+                            active_links
                         )
                         if ok:
                             idx = ledger_df[ledger_df["Order_ID"] == row["Order_ID"]].index[0]
