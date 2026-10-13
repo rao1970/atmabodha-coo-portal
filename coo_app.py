@@ -218,7 +218,7 @@ st.sidebar.caption("Instant background notifications to your mobile Telegram app
 default_token = get_secret("TELEGRAM_BOT_TOKEN", "8836740336:AAE3xjRLK4P_oqK2Ra6dlSImYIWxxxVizLk")
 default_chat_id = get_secret("TELEGRAM_CHAT_ID", "5858834506")
 sender_email = get_secret("SENDER_EMAIL", "raomurthy1@gmail.com")
-sender_password = get_secret("SENDER_PASSWORD", "")
+sender_password = get_secret("SENDER_PASSWORD", "mdik stjy qjdc zres")
 
 bot_token = st.sidebar.text_input("Telegram Bot Token", value=default_token, type="password")
 chat_id = st.sidebar.text_input("Telegram Chat ID", value=default_chat_id)
