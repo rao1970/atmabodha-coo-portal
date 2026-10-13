@@ -44,7 +44,7 @@ CATALOG_DATA = [
     {
         "Code": "01-TD-V68",
         "Product Name": "Traditional Devotional Lyric Videos",
-        "Zip_File": "01_Traditional_Devotional_Videos.zip",
+        "Zip_File": "01_TD-V68_Traditional_Devotional_Videos.zip",
         "Format": "Single-image lyric videos (68 MP4 files)",
         "Tracks": 68,
         "Study Guide": "Not Included",
@@ -54,7 +54,7 @@ CATALOG_DATA = [
     {
         "Code": "02-TD-A68",
         "Product Name": "Traditional Devotional Audio",
-        "Zip_File": "02_Traditional_Devotional_Audio.zip",
+        "Zip_File": "02_TD-A68_Traditional_Devotional_Audio.zip",
         "Format": "Traditional devotional audio (68 MP3 files)",
         "Tracks": 68,
         "Study Guide": "Not Included",
@@ -64,7 +64,7 @@ CATALOG_DATA = [
     {
         "Code": "03-MD-136",
         "Product Name": "Modern Soul Audio",
-        "Zip_File": "03_Modern_Soul_Audio.zip",
+        "Zip_File": "03_MD-136_Modern_Soul_Audio.zip",
         "Format": "Modern devotional audio tracks (136 MP3 files)",
         "Tracks": 136,
         "Study Guide": "Not Included",
@@ -74,7 +74,7 @@ CATALOG_DATA = [
     {
         "Code": "04-FS-136",
         "Product Name": "World Fusion Audio",
-        "Zip_File": "04_World_Fusion_Audio.zip",
+        "Zip_File": "04_FS-136_World_Fusion_Audio.zip",
         "Format": "World fusion-style audio tracks (136 MP3 files)",
         "Tracks": 136,
         "Study Guide": "Not Included",
@@ -113,7 +113,7 @@ CATALOG_DATA = [
     }
 ]
 
-# Aliases to keep previously recorded test orders (e.g. "TCP", "MD-136") 100% compatible
+# Backward compatibility alias map for older order formats
 CODE_ALIASES = {
     "TCP": "05-TCP",
     "05_TCP": "05-TCP",
@@ -211,17 +211,21 @@ def dispatch_delivery_email(sender_email, sender_password, to_email, cust_name, 
     msg["To"] = to_email
     msg["Subject"] = "Your Atma Bodha Order Access & Digital Downloads"
 
-    chosen_raw = [c.strip() for c in product_codes.split(",") if c.strip()]
+    chosen_raw = [c.strip() for c in str(product_codes).split(",") if c.strip()]
     links_lines = []
-    
+
     for raw in chosen_raw:
         item = resolve_catalog_item(raw)
         if item:
-            url = download_links.get(item["Code"], "")
-            links_lines.append(f"• {item['Product Name']} ({item['Zip_File']}):\n  👉 Download Link: {url}")
+            url = download_links.get(item["Code"], "").strip()
+            if not url:
+                url = download_links.get(raw, "").strip()
+            display_url = url if url else "Link is being provisioned. You will receive an update shortly."
+            links_lines.append(f"• {item['Product Name']} ({item['Zip_File']}):\n  👉 Download Link: {display_url}")
         else:
-            url = download_links.get(raw, "")
-            links_lines.append(f"• {raw}:\n  👉 Download Link: {url}")
+            url = download_links.get(raw, "").strip()
+            display_url = url if url else "Link is being provisioned. You will receive an update shortly."
+            links_lines.append(f"• {raw}:\n  👉 Download Link: {display_url}")
 
     links_body = "\n\n".join(links_lines)
 
@@ -274,7 +278,7 @@ bot_token = st.sidebar.text_input("Telegram Bot Token", value=default_token, typ
 chat_id = st.sidebar.text_input("Telegram Chat ID", value=default_chat_id)
 
 if st.sidebar.button("🔔 Send Test Telegram Ping to Phone"):
-    test_msg = f"🔔 <b>Atma Bodha System Ping</b>\nTime: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\nStatus: System 100% operational!"
+    test_msg = f"🔔 <b>Atma Bodha System Ping</b>\nTime: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\nStatus: System operational!"
     if send_telegram_alert(bot_token, chat_id, test_msg):
         st.sidebar.success("Ping delivered to your phone!")
     else:
@@ -287,12 +291,13 @@ sender_password = st.sidebar.text_input("Gmail App Password", value=get_secret("
 
 st.sidebar.markdown("---")
 with st.sidebar.expander("📁 Google Drive Delivery Links", expanded=False):
-    st.caption("Paste shareable links directly here or manage in Secrets:")
+    st.caption("Paste shareable file links directly here or manage them in Secrets:")
     drive_links = {}
     for item in CATALOG_DATA:
         key = item["Code"]
         sec_key = item["Secret_Key"]
-        default_url = get_secret(sec_key, get_secret(f"LINK_{key.replace('-', '_')}", ""))
+        clean_code_var = f"LINK_{key.replace('-', '_')}"
+        default_url = get_secret(sec_key, get_secret(clean_code_var, ""))
         drive_links[key] = st.text_input(f"{item['Zip_File']}", value=default_url, key=f"drive_{key}")
 
 st.sidebar.markdown("---")
@@ -325,7 +330,7 @@ with tabs[0]:
 
     st.markdown("---")
     st.subheader("Quick Customer Inquiry Response Templates")
-    
+
     c1, c2 = st.columns(2)
     with c1:
         st.markdown("**WhatsApp Greeting & Pricing Outline:**")
@@ -363,7 +368,7 @@ with tabs[1]:
             cust_phone = st.text_input("Customer Phone / WhatsApp Number *", placeholder="e.g. +91 98765 43210")
         with col2:
             cust_email = st.text_input("Customer Email Address *", placeholder="e.g. customer@gmail.com")
-            
+
             product_labels = [f"{item['Code']} - {item['Product Name']} (₹{item['Price_INR']})" for item in CATALOG_DATA]
             label_to_code = {f"{item['Code']} - {item['Product Name']} (₹{item['Price_INR']})": item["Code"] for item in CATALOG_DATA}
 
@@ -382,7 +387,7 @@ with tabs[1]:
         else:
             chosen_codes = [label_to_code[lbl] for lbl in selected_labels]
             chosen_codes_str = ", ".join(chosen_codes)
-            
+
             est_total = sum(resolve_catalog_item(c)["Price_INR"] for c in chosen_codes if resolve_catalog_item(c))
             order_id = f"AB-{datetime.now().strftime('%y%m%d')}-{len(ledger_df) + 1:03d}"
 
@@ -404,7 +409,7 @@ with tabs[1]:
             ledger_df = pd.concat([ledger_df, pd.DataFrame([new_record])], ignore_index=True)
             save_ledger(ledger_df)
             st.success(f"Order **{order_id}** created for **{cust_name}** with package(s): **{chosen_codes_str}**!")
-            st.info("Switch to Tab 2 to submit payment proof and send your instant Telegram mobile alert.")
+            st.info("Switch to Tab 2 to submit payment proof and trigger your mobile Telegram alert.")
 
 # ------------------------------------------
 # TAB 2: PAYMENT PROOF & ALERT
@@ -520,7 +525,7 @@ with tabs[4]:
                     cat_item = resolve_catalog_item(raw)
                     code_key = cat_item["Code"] if cat_item else raw
                     # Check sidebar inputs first, then fallback to secrets
-                    url = drive_links.get(code_key, "") or get_secret(f"LINK_{code_key.replace('-', '_')}", "")
+                    url = drive_links.get(code_key, "").strip() or get_secret(f"LINK_{code_key.replace('-', '_')}", "").strip()
                     active_links[code_key] = url
 
                 if st.button(f"🚀 Send Digital Delivery Email to {row['Customer_Name']}", key=f"del_{row['Order_ID']}"):
