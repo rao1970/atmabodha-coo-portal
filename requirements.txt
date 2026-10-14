@@ -1,3 +1,4 @@
-streamlit 
-pandas 
-requests 
+fastapi
+uvicorn
+razorpay
+python-dotenv
